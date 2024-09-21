@@ -1,0 +1,39 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/egan/marsim_ws/devel/include/**",
+        "/home/egan/catkin_ws/devel/include/**",
+        "/opt/ros/noetic/include/**",
+        "/home/egan/marsim_ws/src/MARSIM/cascadePID/include/**",
+        "/home/egan/catkin_ws/src/fast_gicp/include/**",
+        "/home/egan/catkin_ws/src/FAST_LIO/include/**",
+        "/home/egan/catkin_ws/src/hdl_graph_slam/include/**",
+        "/home/egan/marsim_ws/src/MARSIM/local_sensing/include/**",
+        "/home/egan/marsim_ws/src/MARSIM/mars_drone_sim/include/**",
+        "/home/egan/catkin_ws/src/nav/include/**",
+        "/home/egan/catkin_ws/src/ndt_omp/include/**",
+        "/home/egan/marsim_ws/src/MARSIM/Utils/pose_utils/include/**",
+        "/home/egan/marsim_ws/src/MARSIM/Utils/mars_quadrotor_msgs/include/**",
+        "/home/egan/catkin_ws/src/ROG-Map/rog_map/include/**",
+        "/home/egan/catkin_ws/src/ROG-Map/examples/rog_map_example/include/**",
+        "/home/egan/marsim_ws/src/MARSIM/Utils/uav_utils/include/**",
+        "/home/egan/catkin_ws/src/wpb_home/wpb_home_bringup/include/**",
+        "/home/egan/catkin_ws/src/wpb_home/wpb_home_tutorials/include/**",
+        "/home/egan/catkin_ws/src/wpb_home/wpbh_local_planner/include/**",
+        "/home/egan/catkin_ws/src/wpr_simulation/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}
