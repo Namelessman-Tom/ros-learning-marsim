@@ -54,32 +54,32 @@ void dynamics::initialize(Eigen::Vector3d p, Eigen::Vector4d quat)
     q << quat(0), quat(1), quat(2), quat(3);
     Eigen::Quaterniond quaternion(quat(0), quat(1), quat(2), quat(3));
     R_body2world = quaternion.matrix();
-    w_body << 0,0,0;
-    velocity << 0,0,0;
-    acceleration << 0,0,0;
+    w_body << 0, 0, 0;
+    velocity << 0, 0, 0;
+    acceleration << 0, 0, 0;
 }
 
 void dynamics::step(double dt)
 {
     //from force to position
-    acceleration = Force_world/mass;
-    pos = pos + velocity*dt;
-    velocity = velocity + acceleration*dt;
+    acceleration = Force_world / mass;
+    pos = pos + velocity * dt;
+    velocity = velocity + acceleration * dt;
 
     //ouler equation
-    w_body = w_body + dt * Internal_mat.inverse() * (Torque_body - w_body.cross(Internal_mat*w_body));
+    w_body = w_body + dt * Internal_mat.inverse() * (Torque_body - w_body.cross(Internal_mat * w_body));
 
     //from angular velocity to quat
     Eigen::Matrix4d q_transmat;
     Vector4d quat_temp;
     quat_temp = q;
     q_transmat << quat_temp(0), -quat_temp(1), -quat_temp(2), -quat_temp(3),
-                quat_temp(1), quat_temp(0), -quat_temp(3), quat_temp(2),
-                quat_temp(2), quat_temp(3), quat_temp(0), -quat_temp(1),
-                quat_temp(3), -quat_temp(2), quat_temp(1), quat_temp(0);
+        quat_temp(1), quat_temp(0), -quat_temp(3), quat_temp(2),
+        quat_temp(2), quat_temp(3), quat_temp(0), -quat_temp(1),
+        quat_temp(3), -quat_temp(2), quat_temp(1), quat_temp(0);
     Eigen::Vector4d w_body_withzero, d_q;
     w_body_withzero << 0, w_body;
-    d_q = 0.5*q_transmat*w_body_withzero;
+    d_q = 0.5 * q_transmat * w_body_withzero;
     q = q + d_q * dt;
     q.normalize();
     Eigen::Quaterniond temp_quaternion(q(0), q(1), q(2), q(3));

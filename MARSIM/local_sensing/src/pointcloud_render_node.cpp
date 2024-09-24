@@ -75,6 +75,9 @@ sensor_msgs::PointCloud2 local_depth_pcl;
 ros::Subscriber odom_sub, UAV_odom_sub;
 ros::Subscriber global_map_sub, local_map_sub;
 
+ros::Subscriber lidarRotation_sub;
+
+
 ros::Timer local_sensing_timer, pose_timer, dynobj_timer;
 
 bool has_global_map(false);
@@ -88,10 +91,10 @@ Eigen::Matrix4d sensor2body, sensor2world;
 int output_pcd;
 int collisioncheck_enable;
 int is_360lidar;
-int use_avia_pattern, use_vlp32_pattern, use_minicf_pattern,use_os128_pattern;
+int use_avia_pattern, use_vlp32_pattern, use_minicf_pattern, use_os128_pattern;
 int livox_linestep;
-double sensing_horizon, sensing_rate, estimation_rate, polar_resolution, yaw_fov, vertical_fov,\
-         min_raylength, downsample_res, curvature_limit, hash_cubesize, collision_range;
+double sensing_horizon, sensing_rate, estimation_rate, polar_resolution, yaw_fov, vertical_fov, \
+min_raylength, downsample_res, curvature_limit, hash_cubesize, collision_range;
 double x_size, y_size, z_size;
 double gl_xl, gl_yl, gl_zl;
 double resolution, inv_resolution;
@@ -152,6 +155,17 @@ double collision_check_time_sum = 0;
 int collision_check_time_count = 0;
 
 sensor_msgs::PointCloud2 dynobj_points_pcd;
+
+// 雷达朝向
+geometry_msgs::Pose lidarPose;
+
+/// @author Namelessman
+/// @brief 旋转雷达
+/// @param pose 雷达相对于无人机本体+x的朝向(pose.orientation.x/y/z 欧拉角)
+void onLidarRotate(geometry_msgs::Pose pose) {
+  lidarPose = pose;
+}
+
 
 pcl::PointCloud<PointType> generate_sphere_cloud(double size)
 {
@@ -216,18 +230,18 @@ pcl::PointCloud<PointType> generate_box_cloud(double size)
   {
     for (int j = 0;j <= y_num;j++)
     {
-        x = i * downsample_res - size / 2;
-        y = j * downsample_res - size / 2;
-        z = - size / 2;
-        temp_point.x = x;
-        temp_point.y = y;
-        temp_point.z = z;
-        temp_point.intensity = MIN_INTENSITY + (MAX_INTENSITY - MIN_INTENSITY) * 2.0 / 2.0;
-        box_cloud.push_back(temp_point);
-        z = size / 2;
-        temp_point.z = z;
-        temp_point.intensity = MIN_INTENSITY + (MAX_INTENSITY - MIN_INTENSITY) * 2.0 / 2.0;
-        box_cloud.push_back(temp_point);
+      x = i * downsample_res - size / 2;
+      y = j * downsample_res - size / 2;
+      z = -size / 2;
+      temp_point.x = x;
+      temp_point.y = y;
+      temp_point.z = z;
+      temp_point.intensity = MIN_INTENSITY + (MAX_INTENSITY - MIN_INTENSITY) * 2.0 / 2.0;
+      box_cloud.push_back(temp_point);
+      z = size / 2;
+      temp_point.z = z;
+      temp_point.intensity = MIN_INTENSITY + (MAX_INTENSITY - MIN_INTENSITY) * 2.0 / 2.0;
+      box_cloud.push_back(temp_point);
     }
   }
   //draw 4 plane
@@ -236,50 +250,50 @@ pcl::PointCloud<PointType> generate_box_cloud(double size)
     //draw x two lines
     for (int i = 0;i <= x_num;i++)
     {
-        x = i * downsample_res - size / 2;
-        y = - size / 2;
-        z = k * downsample_res - size / 2;
-        temp_point.x = x;
-        temp_point.y = y;
-        temp_point.z = z;
-        temp_point.intensity = MIN_INTENSITY + (MAX_INTENSITY - MIN_INTENSITY) * 2.0 / 2.0;
-        box_cloud.push_back(temp_point);
+      x = i * downsample_res - size / 2;
+      y = -size / 2;
+      z = k * downsample_res - size / 2;
+      temp_point.x = x;
+      temp_point.y = y;
+      temp_point.z = z;
+      temp_point.intensity = MIN_INTENSITY + (MAX_INTENSITY - MIN_INTENSITY) * 2.0 / 2.0;
+      box_cloud.push_back(temp_point);
 
-        x = i * downsample_res - size / 2;
-        y = size / 2;
-        z = k * downsample_res - size / 2;
-        temp_point.x = x;
-        temp_point.y = y;
-        temp_point.z = z;
-        temp_point.intensity = MIN_INTENSITY + (MAX_INTENSITY - MIN_INTENSITY) * 2.0 / 2.0;
-        box_cloud.push_back(temp_point);
+      x = i * downsample_res - size / 2;
+      y = size / 2;
+      z = k * downsample_res - size / 2;
+      temp_point.x = x;
+      temp_point.y = y;
+      temp_point.z = z;
+      temp_point.intensity = MIN_INTENSITY + (MAX_INTENSITY - MIN_INTENSITY) * 2.0 / 2.0;
+      box_cloud.push_back(temp_point);
     }
     for (int j = 0; j <= y_num; j++)
     {
-        x = - size / 2;
-        y = j * downsample_res- size / 2;
-        z = k * downsample_res - size / 2;
-        temp_point.x = x;
-        temp_point.y = y;
-        temp_point.z = z;
-        temp_point.intensity = MIN_INTENSITY + (MAX_INTENSITY - MIN_INTENSITY) * 2.0 / 2.0;
-        box_cloud.push_back(temp_point);
+      x = -size / 2;
+      y = j * downsample_res - size / 2;
+      z = k * downsample_res - size / 2;
+      temp_point.x = x;
+      temp_point.y = y;
+      temp_point.z = z;
+      temp_point.intensity = MIN_INTENSITY + (MAX_INTENSITY - MIN_INTENSITY) * 2.0 / 2.0;
+      box_cloud.push_back(temp_point);
 
-        x = size / 2;
-        y = j * downsample_res- size / 2;
-        z = k * downsample_res - size / 2;
-        temp_point.x = x;
-        temp_point.y = y;
-        temp_point.z = z;
-        temp_point.intensity = MIN_INTENSITY + (MAX_INTENSITY - MIN_INTENSITY) * 2.0 / 2.0;
-        box_cloud.push_back(temp_point);
+      x = size / 2;
+      y = j * downsample_res - size / 2;
+      z = k * downsample_res - size / 2;
+      temp_point.x = x;
+      temp_point.y = y;
+      temp_point.z = z;
+      temp_point.intensity = MIN_INTENSITY + (MAX_INTENSITY - MIN_INTENSITY) * 2.0 / 2.0;
+      box_cloud.push_back(temp_point);
     }
   }
 
   return box_cloud;
 }
 
-void generate_ptclouds_by_pos(Eigen::Vector3d obs_pos, int obs_type, pcl::PointCloud<PointType> &obs_cloud, vector<PointType> &obs_points)
+void generate_ptclouds_by_pos(Eigen::Vector3d obs_pos, int obs_type, pcl::PointCloud<PointType>& obs_cloud, vector<PointType>& obs_points)
 {
   // 0 for using uav model, 1 for using sphere model, 2 for using box model
   switch (obs_type)
@@ -299,7 +313,7 @@ void generate_ptclouds_by_pos(Eigen::Vector3d obs_pos, int obs_type, pcl::PointC
   case 2:
     obs_cloud = generate_box_cloud(0.2);
     break;
-  
+
   default:
     break;
   }
@@ -314,7 +328,7 @@ void generate_ptclouds_by_pos(Eigen::Vector3d obs_pos, int obs_type, pcl::PointC
 }
 
 
-void dynobjGenerate(const ros::TimerEvent &event)
+void dynobjGenerate(const ros::TimerEvent& event)
 {
   if (has_global_map == true && dynobj_enable == 1)
   {
@@ -325,8 +339,8 @@ void dynobjGenerate(const ros::TimerEvent &event)
     int dynpt_count = 0;
     double fly_time;
     Eigen::Vector3d gravity_vec;
-    gravity_vec<<0,0,-1;
-    Eigen::Vector3d dyntemp_dir_polar;    
+    gravity_vec << 0, 0, -1;
+    Eigen::Vector3d dyntemp_dir_polar;
 
     // rewrite generate dynamic obstacles
     for (int n = 0; n < dynobject_num; n++)
@@ -334,54 +348,54 @@ void dynobjGenerate(const ros::TimerEvent &event)
       // according to motion mode, compute the positions of dynamic obstacle
       switch (dynobj_move_modes[n])
       {
-        case 0:
-          {
-          // constant speed mode
-          fly_time = (ros::Time::now() - dyn_start_time_vec[n]).toSec();
-          dynobj_poss[n] = dynobj_poss[n] + fly_time * dynobj_dir[n];
-          break;
-          }
-
-        case 1:
-          {
-          // constant gravity acceleration mode
-          fly_time = (ros::Time::now() - dyn_start_time_vec[n]).toSec();
-          dynobj_dir[n] = dynobj_dir[n] + gravity_vec * fly_time;
-          dynobj_poss[n] = dynobj_poss[n] + fly_time * dynobj_dir[n];
-          break;
-          }
-
-        case 2:
-          {
-          // random walk mode
-          fly_time = (ros::Time::now() - dyn_start_time_vec[n]).toSec();
-          dyntemp_dir_polar(0) = rand() / double(RAND_MAX) * 3.1415926;
-          dyntemp_dir_polar(1) = (rand() / double(RAND_MAX) - 0.5) * 3.1415926;
-          dynobj_dir[n](0) = dyn_velocity * sin(dyntemp_dir_polar(1));
-          dynobj_dir[n](1) = dyn_velocity * cos(dyntemp_dir_polar(1)) * sin(dyntemp_dir_polar(0));
-          dynobj_dir[n](2) = dyn_velocity * cos(dyntemp_dir_polar(1)) * cos(dyntemp_dir_polar(0));
-          dynobj_poss[n] = dynobj_poss[n] + fly_time * dynobj_dir[n];
-          break;
-          }
-        
-        default:
-          break;
+      case 0:
+      {
+        // constant speed mode
+        fly_time = (ros::Time::now() - dyn_start_time_vec[n]).toSec();
+        dynobj_poss[n] = dynobj_poss[n] + fly_time * dynobj_dir[n];
+        break;
       }
 
-          // if dynamic obstacle is out of bounding box, regenerte one
-          if (dynobj_poss[n](0) < map_min(0) || dynobj_poss[n](0) > map_max(0) || dynobj_poss[n](1) < map_min(1) || dynobj_poss[n](1) > map_max(1) || dynobj_poss[n](2) < map_min(2) || dynobj_poss[n](2) > map_max(2))
-          {
-            dynobj_poss[n](0) = rand() / double(RAND_MAX) * (map_max(0) - map_min(0)) + map_min(0);
-            dynobj_poss[n](1) = rand() / double(RAND_MAX) * (map_max(1) - map_min(1)) + map_min(1);
-            dynobj_poss[n](2) = rand() / double(RAND_MAX) * (map_max(2) - map_min(2)) + map_min(2);
-            Eigen::Vector3d dyntemp_dir_polar;
-            dyntemp_dir_polar(0) = rand() / double(RAND_MAX) * 3.1415926;
-            dyntemp_dir_polar(1) = (rand() / double(RAND_MAX) - 0.5) * 3.1415926;
-            dynobj_dir[n](0) = dyn_velocity * sin(dyntemp_dir_polar(1));
-            dynobj_dir[n](1) = dyn_velocity * cos(dyntemp_dir_polar(1)) * sin(dyntemp_dir_polar(0));
-            dynobj_dir[n](2) = dyn_velocity * cos(dyntemp_dir_polar(1)) * cos(dyntemp_dir_polar(0));
-            
-          }
+      case 1:
+      {
+        // constant gravity acceleration mode
+        fly_time = (ros::Time::now() - dyn_start_time_vec[n]).toSec();
+        dynobj_dir[n] = dynobj_dir[n] + gravity_vec * fly_time;
+        dynobj_poss[n] = dynobj_poss[n] + fly_time * dynobj_dir[n];
+        break;
+      }
+
+      case 2:
+      {
+        // random walk mode
+        fly_time = (ros::Time::now() - dyn_start_time_vec[n]).toSec();
+        dyntemp_dir_polar(0) = rand() / double(RAND_MAX) * 3.1415926;
+        dyntemp_dir_polar(1) = (rand() / double(RAND_MAX) - 0.5) * 3.1415926;
+        dynobj_dir[n](0) = dyn_velocity * sin(dyntemp_dir_polar(1));
+        dynobj_dir[n](1) = dyn_velocity * cos(dyntemp_dir_polar(1)) * sin(dyntemp_dir_polar(0));
+        dynobj_dir[n](2) = dyn_velocity * cos(dyntemp_dir_polar(1)) * cos(dyntemp_dir_polar(0));
+        dynobj_poss[n] = dynobj_poss[n] + fly_time * dynobj_dir[n];
+        break;
+      }
+
+      default:
+        break;
+      }
+
+      // if dynamic obstacle is out of bounding box, regenerte one
+      if (dynobj_poss[n](0) < map_min(0) || dynobj_poss[n](0) > map_max(0) || dynobj_poss[n](1) < map_min(1) || dynobj_poss[n](1) > map_max(1) || dynobj_poss[n](2) < map_min(2) || dynobj_poss[n](2) > map_max(2))
+      {
+        dynobj_poss[n](0) = rand() / double(RAND_MAX) * (map_max(0) - map_min(0)) + map_min(0);
+        dynobj_poss[n](1) = rand() / double(RAND_MAX) * (map_max(1) - map_min(1)) + map_min(1);
+        dynobj_poss[n](2) = rand() / double(RAND_MAX) * (map_max(2) - map_min(2)) + map_min(2);
+        Eigen::Vector3d dyntemp_dir_polar;
+        dyntemp_dir_polar(0) = rand() / double(RAND_MAX) * 3.1415926;
+        dyntemp_dir_polar(1) = (rand() / double(RAND_MAX) - 0.5) * 3.1415926;
+        dynobj_dir[n](0) = dyn_velocity * sin(dyntemp_dir_polar(1));
+        dynobj_dir[n](1) = dyn_velocity * cos(dyntemp_dir_polar(1)) * sin(dyntemp_dir_polar(0));
+        dynobj_dir[n](2) = dyn_velocity * cos(dyntemp_dir_polar(1)) * cos(dyntemp_dir_polar(0));
+
+      }
       dyn_start_time_vec[n] = ros::Time::now();
       // generate point cloud of dynamic obstacle
       pcl::PointCloud<PointType> dynobj_cloud;
@@ -553,7 +567,7 @@ void dynobjGenerate(const ros::TimerEvent &event)
 }
 
 // decentralize simualtion, get other uav odometry and generate point clouds
-void multiOdometryCallbck(const nav_msgs::OdometryConstPtr &msg, int drone_id)
+void multiOdometryCallbck(const nav_msgs::OdometryConstPtr& msg, int drone_id)
 {
   Eigen::Vector3d uav_pos;
   uav_pos(0) = msg->pose.pose.position.x;
@@ -569,7 +583,7 @@ void multiOdometryCallbck(const nav_msgs::OdometryConstPtr &msg, int drone_id)
   PointType temp_point;
   int uavpt_count = 0;
 
-  if(use_uav_extra_model == 0)
+  if (use_uav_extra_model == 0)
   {
     // generate uav point cloud
     double x_min = uav_pos(0) - 0.5 * uav_size[0];
@@ -592,8 +606,9 @@ void multiOdometryCallbck(const nav_msgs::OdometryConstPtr &msg, int drone_id)
           uavpt_count++;
         }
       }
-    }    
-  }else{
+    }
+  }
+  else {
     // read pcd model from file and attach it to UAVs odom
     Eigen::Quaterniond pose;
     pose.x() = msg->pose.pose.orientation.x;
@@ -601,21 +616,21 @@ void multiOdometryCallbck(const nav_msgs::OdometryConstPtr &msg, int drone_id)
     pose.z() = msg->pose.pose.orientation.z;
     pose.w() = msg->pose.pose.orientation.w;
     Eigen::Matrix3d uav_rot = pose.toRotationMatrix();
-    for(int i=0;i<uav_extra_model.points.size();i++)
+    for (int i = 0;i < uav_extra_model.points.size();i++)
     {
-          Eigen::Vector3d model_point;
-          model_point(0) = uav_extra_model.points[i].x;
-          model_point(1) = uav_extra_model.points[i].y;
-          model_point(2) = uav_extra_model.points[i].z;
-          model_point = uav_rot * model_point + uav_pos;
-          temp_point.x = model_point(0);
-          temp_point.y = model_point(1);
-          temp_point.z = model_point(2);
-          temp_point.intensity = ((float)(MAX_INTENSITY - MIN_INTENSITY)) * ((drone_id + 1.0) / (float(drone_num))) + MIN_INTENSITY; // set the intensity of the point
-          otheruav_points[drone_id].push_back(temp_point);
-          otheruav_pointsindex[drone_id].push_back(uavpt_count + origin_mapptcount + 100000 + drone_id * uav_points_num);
-          otheruav_points_vis.push_back(temp_point);
-          uavpt_count++;
+      Eigen::Vector3d model_point;
+      model_point(0) = uav_extra_model.points[i].x;
+      model_point(1) = uav_extra_model.points[i].y;
+      model_point(2) = uav_extra_model.points[i].z;
+      model_point = uav_rot * model_point + uav_pos;
+      temp_point.x = model_point(0);
+      temp_point.y = model_point(1);
+      temp_point.z = model_point(2);
+      temp_point.intensity = ((float)(MAX_INTENSITY - MIN_INTENSITY)) * ((drone_id + 1.0) / (float(drone_num))) + MIN_INTENSITY; // set the intensity of the point
+      otheruav_points[drone_id].push_back(temp_point);
+      otheruav_pointsindex[drone_id].push_back(uavpt_count + origin_mapptcount + 100000 + drone_id * uav_points_num);
+      otheruav_points_vis.push_back(temp_point);
+      uavpt_count++;
     }
   }
 
@@ -627,7 +642,7 @@ void multiOdometryCallbck(const nav_msgs::OdometryConstPtr &msg, int drone_id)
   pub_uavcloud.publish(otheruav_points_vis_pcd);
 }
 
-void rcvOdometryCallbck(const nav_msgs::Odometry &odom)
+void rcvOdometryCallbck(const nav_msgs::Odometry& odom)
 {
   /*if(!has_global_map)
     return;*/
@@ -691,7 +706,7 @@ void rcvOdometryCallbck(const nav_msgs::Odometry &odom)
   collision_checktime_file << total_time << endl;
 }
 
-void rcvGlobalPointCloudCallBack(const sensor_msgs::PointCloud2 &pointcloud_map)
+void rcvGlobalPointCloudCallBack(const sensor_msgs::PointCloud2& pointcloud_map)
 {
   if (has_global_map)
     return;
@@ -786,14 +801,14 @@ void rcvGlobalPointCloudCallBack(const sensor_msgs::PointCloud2 &pointcloud_map)
       dyntemp_dir[0] = dyn_velocity * cos(dyntemp_dir_polar(1)) * cos(dyntemp_dir_polar(0));
       dynobj_dir.push_back(dyntemp_dir);
 
-      if(dyn_obs_diff_size_on)
+      if (dyn_obs_diff_size_on)
       {
         double dynobject_rand_size = rand() / double(RAND_MAX) * (dynobject_size - downsample_res) + downsample_res;
         dyn_obs_size_vec.push_back(dynobject_rand_size);
       }
 
       dyn_start_time = ros::Time::now();
-      dyn_start_time_vec.push_back(dyn_start_time);      
+      dyn_start_time_vec.push_back(dyn_start_time);
     }
 
 
@@ -802,14 +817,14 @@ void rcvGlobalPointCloudCallBack(const sensor_msgs::PointCloud2 &pointcloud_map)
   has_global_map = true;
 }
 
-inline void euc2polar(Eigen::Vector3d &euc_pt, float length, polar3D *polar_pt)
+inline void euc2polar(Eigen::Vector3d& euc_pt, float length, polar3D* polar_pt)
 {
   polar_pt->theta = round((atan2(euc_pt[1], euc_pt[0])) / M_PI * 180.0 / polar_resolution);
   polar_pt->fi = round((atan2(euc_pt[2], euc_pt.head<2>().norm()) / M_PI * 180.0 / polar_resolution));
   polar_pt->r = length;
 }
 
-inline void polar2euc(polar3D *polar_pt, Eigen::Vector3d &euc_pt)
+inline void polar2euc(polar3D* polar_pt, Eigen::Vector3d& euc_pt)
 {
   // trans from polar coordinate to euclidean coordinate
   // theta_angle
@@ -830,7 +845,7 @@ double duration8 = 0.0;
 double duration_interline = 0.0;
 int comp_time_count = 0;
 
-void renderSensedPoints(const ros::TimerEvent &event)
+void renderSensedPoints(const ros::TimerEvent& event)
 {
 
   ros::Time t1 = ros::Time::now();
@@ -859,14 +874,14 @@ void renderSensedPoints(const ros::TimerEvent &event)
   Eigen::Matrix3d rot_body2lidar = Matrix3d::Identity();
 
   // rotate lidar 
-  // Eigen::Vector3d eulerAngle_body2lidar(0,0.5236,0);
-  // Eigen::AngleAxisd rollAngle(AngleAxisd(eulerAngle_body2lidar(0),Vector3d::UnitX()));
-  // Eigen::AngleAxisd pitchAngle(AngleAxisd(eulerAngle_body2lidar(1),Vector3d::UnitY()));
-  // Eigen::AngleAxisd yawAngle(AngleAxisd(eulerAngle_body2lidar(2),Vector3d::UnitZ()));
-  // rot_body2lidar=yawAngle*pitchAngle*rollAngle;
+  Eigen::Vector3d eulerAngle_body2lidar(lidarPose.orientation.x, lidarPose.orientation.y, lidarPose.orientation.z);
+  Eigen::AngleAxisd rollAngle(AngleAxisd(eulerAngle_body2lidar(0), Vector3d::UnitX()));
+  Eigen::AngleAxisd pitchAngle(AngleAxisd(eulerAngle_body2lidar(1), Vector3d::UnitY()));
+  Eigen::AngleAxisd yawAngle(AngleAxisd(eulerAngle_body2lidar(2), Vector3d::UnitZ()));
+  rot_body2lidar = yawAngle * pitchAngle * rollAngle;
   // rotate lidar end
 
-  const Eigen::Matrix3d rot(q.toRotationMatrix()*rot_body2lidar);
+  const Eigen::Matrix3d rot(q.toRotationMatrix() * rot_body2lidar);
 
   // rot = q.toRotationMatrix();
   const Eigen::Vector3d yaw_x(1, 0, 0);
@@ -1175,7 +1190,7 @@ void renderSensedPoints(const ros::TimerEvent &event)
   ros::Time t4 = ros::Time::now();
   duration3 = ((t4 - t3).toSec()) + duration3;
 
-  double lookup_time = (t4-t1).toSec();
+  double lookup_time = (t4 - t1).toSec();
   myfile << lookup_time << " ";
 
   const size_t size_ = fov_points.size();
@@ -1224,7 +1239,7 @@ void renderSensedPoints(const ros::TimerEvent &event)
       int cen_fi_index = polar_pt.fi + round(0.5 * polar_height);
 
       int half_cover_angle = ceil(
-          (asin(cover_dis / dir_vec.norm()) / (M_PI * polar_resolution / 180.0)));
+        (asin(cover_dis / dir_vec.norm()) / (M_PI * polar_resolution / 180.0)));
       // ROS_INFO("half cover angle = %d",half_cover_angle);
       // int half_cover_angle = 1;
 
@@ -1265,10 +1280,10 @@ void renderSensedPoints(const ros::TimerEvent &event)
         int fi_end = cen_fi_index + half_cover_angle;
 
         for (int theta_index_o = theta_start;
-             theta_index_o <= theta_end; theta_index_o++)
+          theta_index_o <= theta_end; theta_index_o++)
         {
           for (int fi_index_o = fi_start;
-               fi_index_o <= fi_end; fi_index_o = fi_index_o + 1)
+            fi_index_o <= fi_end; fi_index_o = fi_index_o + 1)
           {
 
             if (unlikely((theta_index_o > (polar_width - 1)) || (theta_index_o < 0) || (fi_index_o > (polar_height - 1)) || (fi_index_o < 0)))
@@ -1310,45 +1325,45 @@ void renderSensedPoints(const ros::TimerEvent &event)
 
 #pragma omp parallel /*default(none)*/ \
     shared(polarindex_matrix, culling_kdindex)
-    {
-      std::vector<int> vec_private;
+  {
+    std::vector<int> vec_private;
 
 #pragma omp for nowait collapse(2)
-      // compute plane interline
-      for (int i = 0; i < polar_width; i++)
+    // compute plane interline
+    for (int i = 0; i < polar_width; i++)
+    {
+      for (int j = 0; j < polar_height; j++)
       {
-        for (int j = 0; j < polar_height; j++)
+        if (polarindex_matrix(i, j) != 0)
         {
-          if (polarindex_matrix(i, j) != 0)
+          // check if the index in the vector
+          if (std::find(vec_private.begin(), vec_private.end(), polarindex_matrix(i, j)) !=
+            vec_private.end())
           {
-            // check if the index in the vector
-            if (std::find(vec_private.begin(), vec_private.end(), polarindex_matrix(i, j)) !=
-                vec_private.end())
-            {
-              continue;
-            }
-            else
-            {
-              vec_private.push_back(polarindex_matrix(i, j));
-            }
+            continue;
+          }
+          else
+          {
+            vec_private.push_back(polarindex_matrix(i, j));
           }
         }
       }
-#pragma omp critical
-      culling_kdindex.insert(culling_kdindex.end(), vec_private.begin(), vec_private.end());
     }
-    // ROS_INFO("CULLING COUNT = %d",culling_kdindex.size());
+#pragma omp critical
+    culling_kdindex.insert(culling_kdindex.end(), vec_private.begin(), vec_private.end());
+  }
+  // ROS_INFO("CULLING COUNT = %d",culling_kdindex.size());
 
-    t6 = ros::Time::now();
-    duration5 = (t6 - t5).toSec() + duration5;
-    duration_interline = 0;
+  t6 = ros::Time::now();
+  duration5 = (t6 - t5).toSec() + duration5;
+  duration_interline = 0;
 
-    // omp_set_num_threads(32);
-    std::vector<int>::iterator iter;
-    int culling_size = culling_kdindex.size();
+  // omp_set_num_threads(32);
+  std::vector<int>::iterator iter;
+  int culling_size = culling_kdindex.size();
 
-    double duration_interline = 0.0;
-    double duration_direct = 0.0;
+  double duration_interline = 0.0;
+  double duration_direct = 0.0;
 
 #ifndef DEBUG
 #pragma omp parallel /*default(none)*/                                                                \
@@ -1358,192 +1373,192 @@ void renderSensedPoints(const ros::TimerEvent &event)
            all_normals, curvature_limit, fov_points, origin_mapptcount, dynobj_points,            \
            polarindextype_matrix, sensing_horizon, dynobj_enable, culling_size, allowblur_matrix, \
            otheruav_points_inrender, drone_num, uav_points_num, polarpointintensity_matrix)
-    {
+  {
 #pragma omp for
 #endif
-      // for(iter = culling_kdindex.begin();iter!=culling_kdindex.end();++iter)
-      for (int i = 0; i < culling_size; i++)
+    // for(iter = culling_kdindex.begin();iter!=culling_kdindex.end();++iter)
+    for (int i = 0; i < culling_size; i++)
+    {
+      ros::Time t_in1 = ros::Time::now();
+
+      // multi uav add
+      int droneid_temp, point_temp_index;
+
+      int point_index = culling_kdindex[i];
+
+      // check if it is dyn points
+      PointType pt;
+      if (likely(point_index < origin_mapptcount))
       {
-        ros::Time t_in1 = ros::Time::now();
-
-        // multi uav add
-        int droneid_temp, point_temp_index;
-
-        int point_index = culling_kdindex[i];
-
-        // check if it is dyn points
-        PointType pt;
-        if (likely(point_index < origin_mapptcount))
+        pt = cloud_all_map.points[point_index];
+      }
+      else
+      {
+        if (dynobj_enable == 1)
         {
-          pt = cloud_all_map.points[point_index];
+          pt = dynobj_points[point_index - origin_mapptcount];
+        }
+        else if (drone_num > 1)
+        {
+          point_temp_index = point_index - origin_mapptcount - 100000;
+          droneid_temp = (point_temp_index / (uav_points_num));
+
+          if ((point_temp_index - droneid_temp * uav_points_num) > (otheruav_points_inrender[droneid_temp].size() - 1))
+            continue;
+          pt = otheruav_points_inrender[droneid_temp][point_temp_index - droneid_temp * uav_points_num];
         }
         else
         {
-          if (dynobj_enable == 1)
-          {
-            pt = dynobj_points[point_index - origin_mapptcount];
-          }
-          else if (drone_num > 1)
-          {
-            point_temp_index = point_index - origin_mapptcount - 100000;
-            droneid_temp = (point_temp_index / (uav_points_num));
+          continue;
+        }
+      }
 
-            if ((point_temp_index - droneid_temp * uav_points_num) > (otheruav_points_inrender[droneid_temp].size() - 1))
-              continue;
-            pt = otheruav_points_inrender[droneid_temp][point_temp_index - droneid_temp * uav_points_num];
-          }
-          else
-          {
-            continue;
-          }
+      Eigen::Vector3d pt3;
+      pt3[0] = pt.x;
+      pt3[1] = pt.y;
+      pt3[2] = pt.z;
+      auto dir = pt3 - pos;
+
+      polar3D polar_pt;
+      Eigen::Vector3d dir_vec;
+      // dir_vec = pt3 - pos;
+
+      // trans coordinate to lidar coordinate
+      dir_vec = rot.transpose() * dir;
+      double pt_dis = dir_vec.norm();
+      euc2polar(dir_vec, pt_dis, &polar_pt);
+      // ROS_INFO("dir_vec = %f,%f,%f, polar = %d,%d",dir(0),dir(1),dir(2), polar_pt.theta,polar_pt.fi);
+      int cen_theta_index = polar_pt.theta + round(0.5 * polar_width);
+      int cen_fi_index = polar_pt.fi + round(0.5 * polar_height);
+
+      int half_cover_angle = ceil(
+        (asin(cover_dis / pt_dis) / (M_PI * polar_resolution / 180.0)));
+
+      ros::Time t_in2 = ros::Time::now();
+      // ROS_INFO("Init using %f s",(t_in2-t_in1).toSec());
+
+      //! check if it is dyn points
+      if (likely(point_index < origin_mapptcount))
+      {
+
+        Eigen::Vector3d plane_normal;
+        plane_normal(0) = all_normals->points[point_index].normal_x;
+        plane_normal(1) = all_normals->points[point_index].normal_y;
+        plane_normal(2) = all_normals->points[point_index].normal_z;
+        float curvature;
+        curvature = all_normals->points[point_index].curvature;
+
+        if (isnan(plane_normal(0)) || isnan(plane_normal(1)) || isnan(plane_normal(2))) //|| curvature > 10*(1.0/(0.5*downsample_res))
+        {
+          continue;
         }
 
-        Eigen::Vector3d pt3;
-        pt3[0] = pt.x;
-        pt3[1] = pt.y;
-        pt3[2] = pt.z;
-        auto dir = pt3 - pos;
+        int theta_start = cen_theta_index - half_cover_angle;
+        int theta_end = cen_theta_index + half_cover_angle;
+        int fi_start = cen_fi_index - half_cover_angle;
+        int fi_end = cen_fi_index + half_cover_angle;
 
-        polar3D polar_pt;
-        Eigen::Vector3d dir_vec;
-        // dir_vec = pt3 - pos;
+        int theta_index_o = theta_start;
+        int fi_index_o = fi_start;
 
-        // trans coordinate to lidar coordinate
-        dir_vec = rot.transpose() * dir;
-        double pt_dis = dir_vec.norm();
-        euc2polar(dir_vec, pt_dis, &polar_pt);
-        // ROS_INFO("dir_vec = %f,%f,%f, polar = %d,%d",dir(0),dir(1),dir(2), polar_pt.theta,polar_pt.fi);
-        int cen_theta_index = polar_pt.theta + round(0.5 * polar_width);
-        int cen_fi_index = polar_pt.fi + round(0.5 * polar_height);
-
-        int half_cover_angle = ceil(
-            (asin(cover_dis / pt_dis) / (M_PI * polar_resolution / 180.0)));
-
-        ros::Time t_in2 = ros::Time::now();
-        // ROS_INFO("Init using %f s",(t_in2-t_in1).toSec());
-
-        //! check if it is dyn points
-        if (likely(point_index < origin_mapptcount))
+        for (int theta_index_o = theta_start;
+          theta_index_o <= theta_end; theta_index_o++)
         {
-
-          Eigen::Vector3d plane_normal;
-          plane_normal(0) = all_normals->points[point_index].normal_x;
-          plane_normal(1) = all_normals->points[point_index].normal_y;
-          plane_normal(2) = all_normals->points[point_index].normal_z;
-          float curvature;
-          curvature = all_normals->points[point_index].curvature;
-
-          if (isnan(plane_normal(0)) || isnan(plane_normal(1)) || isnan(plane_normal(2))) //|| curvature > 10*(1.0/(0.5*downsample_res))
+          for (int fi_index_o = fi_start;
+            fi_index_o <= fi_end; fi_index_o = fi_index_o + 1)
           {
-            continue;
-          }
+            // ros::Time t8 = ros::Time::now();
+            // ros::Time t_in3 = ros::Time::now();
 
-          int theta_start = cen_theta_index - half_cover_angle;
-          int theta_end = cen_theta_index + half_cover_angle;
-          int fi_start = cen_fi_index - half_cover_angle;
-          int fi_end = cen_fi_index + half_cover_angle;
+            polar3D cur_polarpt;
+            Eigen::Vector3d ray, inter_point, inter_point_world;
+            double vpt, line_t;
 
-          int theta_index_o = theta_start;
-          int fi_index_o = fi_start;
-
-          for (int theta_index_o = theta_start;
-               theta_index_o <= theta_end; theta_index_o++)
-          {
-            for (int fi_index_o = fi_start;
-                 fi_index_o <= fi_end; fi_index_o = fi_index_o + 1)
+            if (unlikely((theta_index_o > (polar_width - 1)) || (theta_index_o < 0) || (fi_index_o > (polar_height - 1)) || (fi_index_o < 0)))
             {
-              // ros::Time t8 = ros::Time::now();
-              // ros::Time t_in3 = ros::Time::now();
+            }
+            else
+            {
+              // compute plane interline
+              cur_polarpt.theta = theta_index_o - round(0.5 * polar_width);
+              cur_polarpt.fi = fi_index_o - round(0.5 * polar_height);
+              cur_polarpt.r = 1.0;
+              polar2euc(&cur_polarpt, ray);
+              ray = rot * ray;
+              ray.normalize();
+              vpt = ray.dot(plane_normal);
 
-              polar3D cur_polarpt;
-              Eigen::Vector3d ray, inter_point, inter_point_world;
-              double vpt, line_t;
+              line_t = dir.dot(plane_normal) / vpt;
+              inter_point_world = pos + line_t * ray;
 
-              if (unlikely((theta_index_o > (polar_width - 1)) || (theta_index_o < 0) || (fi_index_o > (polar_height - 1)) || (fi_index_o < 0)))
+              if ((inter_point_world - pt3).norm() > 1 * 0.8660254 * downsample_res) // sqrt 3   0.5*1.7321  2*0.8660254*downsample_res
               {
+                // ROS_INFO("OUT OF LIMIT");
               }
               else
               {
-                // compute plane interline
-                cur_polarpt.theta = theta_index_o - round(0.5 * polar_width);
-                cur_polarpt.fi = fi_index_o - round(0.5 * polar_height);
-                cur_polarpt.r = 1.0;
-                polar2euc(&cur_polarpt, ray);
-                ray = rot * ray;
-                ray.normalize();
-                vpt = ray.dot(plane_normal);
-
-                line_t = dir.dot(plane_normal) / vpt;
-                inter_point_world = pos + line_t * ray;
-
-                if ((inter_point_world - pt3).norm() > 1 * 0.8660254 * downsample_res) // sqrt 3   0.5*1.7321  2*0.8660254*downsample_res
+                inter_point = rot.transpose() * (inter_point_world - pos);
+                if (polar_matrix(theta_index_o, fi_index_o) > inter_point.norm())
                 {
-                  // ROS_INFO("OUT OF LIMIT");
-                }
-                else
-                {
-                  inter_point = rot.transpose() * (inter_point_world - pos);
-                  if (polar_matrix(theta_index_o, fi_index_o) > inter_point.norm())
+                  polar_matrix(theta_index_o, fi_index_o) = inter_point.norm();
+                  polarindextype_matrix(theta_index_o, fi_index_o) = 2;
+
+                  // limit curvature, avoid a good plane to be interlined
+                  if (curvature > 0.05)
                   {
-                    polar_matrix(theta_index_o, fi_index_o) = inter_point.norm();
-                    polarindextype_matrix(theta_index_o, fi_index_o) = 2;
-
-                    // limit curvature, avoid a good plane to be interlined
-                    if (curvature > 0.05)
-                    {
-                      // polarindextype_matrix(theta_index_o,fi_index_o) = 3;
-                      allowblur_matrix(theta_index_o, fi_index_o) = 1;
-                    }
-                    else
-                    {
-                      // polarindextype_matrix(theta_index_o,fi_index_o) = 2;
-                      allowblur_matrix(theta_index_o, fi_index_o) = 1;
-                    }
+                    // polarindextype_matrix(theta_index_o,fi_index_o) = 3;
+                    allowblur_matrix(theta_index_o, fi_index_o) = 1;
+                  }
+                  else
+                  {
+                    // polarindextype_matrix(theta_index_o,fi_index_o) = 2;
+                    allowblur_matrix(theta_index_o, fi_index_o) = 1;
                   }
                 }
               }
-              //  ros::Time t_in4 = ros::Time::now();
-              //   duration_interline =duration_interline + (t_in4-t_in3).toSec();//
             }
+            //  ros::Time t_in4 = ros::Time::now();
+            //   duration_interline =duration_interline + (t_in4-t_in3).toSec();//
           }
-        }
-        else
-        {
-
-          ros::Time t_in5 = ros::Time::now();
-
-          int theta_start = cen_theta_index - half_cover_angle;
-          int theta_end = cen_theta_index + half_cover_angle;
-          int fi_start = cen_fi_index - half_cover_angle;
-          int fi_end = cen_fi_index + half_cover_angle;
-
-          for (int theta_index_o = theta_start;
-               theta_index_o <= theta_end; theta_index_o++)
-          {
-            for (int fi_index_o = fi_start;
-                 fi_index_o <= fi_end; fi_index_o++)
-            {
-              // ros::Time t8 = ros::Time::now();
-              if (unlikely((theta_index_o > (polar_width - 1)) || (theta_index_o < 0) || (fi_index_o > (polar_height - 1)) || (fi_index_o < 0)))
-              {
-                continue;
-              }
-              if (polar_matrix(theta_index_o, fi_index_o) > polar_pt.r)
-              {
-
-                polar_matrix(theta_index_o, fi_index_o) = polar_pt.r;
-                polarindextype_matrix(theta_index_o, fi_index_o) = 4;
-                allowblur_matrix(theta_index_o, fi_index_o) = 0;
-              }
-            }
-          }
-          //  ros::Time t_in6 = ros::Time::now();
-          //   duration_direct =duration_direct + (t_in6-t_in5).toSec();
-          //  ROS_INFO("End one");
         }
       }
-#ifndef DEBUG
+      else
+      {
+
+        ros::Time t_in5 = ros::Time::now();
+
+        int theta_start = cen_theta_index - half_cover_angle;
+        int theta_end = cen_theta_index + half_cover_angle;
+        int fi_start = cen_fi_index - half_cover_angle;
+        int fi_end = cen_fi_index + half_cover_angle;
+
+        for (int theta_index_o = theta_start;
+          theta_index_o <= theta_end; theta_index_o++)
+        {
+          for (int fi_index_o = fi_start;
+            fi_index_o <= fi_end; fi_index_o++)
+          {
+            // ros::Time t8 = ros::Time::now();
+            if (unlikely((theta_index_o > (polar_width - 1)) || (theta_index_o < 0) || (fi_index_o > (polar_height - 1)) || (fi_index_o < 0)))
+            {
+              continue;
+            }
+            if (polar_matrix(theta_index_o, fi_index_o) > polar_pt.r)
+            {
+
+              polar_matrix(theta_index_o, fi_index_o) = polar_pt.r;
+              polarindextype_matrix(theta_index_o, fi_index_o) = 4;
+              allowblur_matrix(theta_index_o, fi_index_o) = 0;
+            }
+          }
+        }
+        //  ros::Time t_in6 = ros::Time::now();
+        //   duration_direct =duration_direct + (t_in6-t_in5).toSec();
+        //  ROS_INFO("End one");
+      }
     }
+#ifndef DEBUG
+  }
 #endif
   }
 
@@ -1767,9 +1782,9 @@ void renderSensedPoints(const ros::TimerEvent &event)
 
   Eigen::Matrix4d sensor2world;
   sensor2world << rot(0, 0), rot(0, 1), rot(0, 2), pos.x(),
-      rot(1, 0), rot(1, 1), rot(1, 2), pos.y(),
-      rot(2, 0), rot(2, 1), rot(2, 2), pos.z(),
-      0, 0, 0, 1;
+    rot(1, 0), rot(1, 1), rot(1, 2), pos.y(),
+    rot(2, 0), rot(2, 1), rot(2, 2), pos.z(),
+    0, 0, 0, 1;
   Eigen::Matrix4d world2sensor;
   world2sensor = sensor2world.inverse();
 
@@ -1834,7 +1849,7 @@ void renderSensedPoints(const ros::TimerEvent &event)
   }
 }
 
-void pubSensorPose(const ros::TimerEvent &e)
+void pubSensorPose(const ros::TimerEvent& e)
 {
   Eigen::Quaterniond q;
   q = sensor2world.block<3, 3>(0, 0);
@@ -1852,7 +1867,7 @@ void pubSensorPose(const ros::TimerEvent &e)
   pub_pose.publish(sensor_pose);
 }
 
-int main(int argc, char **argv)
+int main(int argc, char** argv)
 {
   ros::init(argc, argv, "pcl_render");
   ros::NodeHandle nh("~");
@@ -1895,7 +1910,7 @@ int main(int argc, char **argv)
   other_uav_rcv_time.resize(drone_num);
   otheruav_points.resize(drone_num);
   otheruav_pointsindex.resize(drone_num);
-  ros::Subscriber *subs = new ros::Subscriber[drone_num];
+  ros::Subscriber* subs = new ros::Subscriber[drone_num];
   for (int i = 0; i < drone_num; i++)
   {
     if (i == drone_id)
@@ -1911,7 +1926,7 @@ int main(int argc, char **argv)
 
   pcl::VoxelGrid<PointType> sor;
   int pcd_read_status;
-  if(use_uav_extra_model)
+  if (use_uav_extra_model)
   {
     string uav_model_path;
     uav_model_path = ros::package::getPath("odom_visualization");//= "/home/mars/catkin_ws2/src/Exploration_sim/octomap_mapping/octomap_server"
@@ -1922,15 +1937,16 @@ int main(int argc, char **argv)
     pcd_read_status = pcl::io::loadPCDFile<PointType>(uav_model_path, uav_extra_model);
     if (pcd_read_status == -1)
     {
-        cout << "can't read uav extra model file." << endl;
-        return 0;
+      cout << "can't read uav extra model file." << endl;
+      return 0;
     }
     //downsample uav model
     sor.setInputCloud(uav_extra_model.makeShared());
     sor.setLeafSize(downsample_res, downsample_res, downsample_res);
-    sor.filter(uav_extra_model);    
+    sor.filter(uav_extra_model);
     uav_points_num = uav_extra_model.size();
-  }else{
+  }
+  else {
     uav_size[0] = 0.4;
     uav_size[1] = 0.4;
     uav_size[2] = 0.3;
@@ -1948,6 +1964,14 @@ int main(int argc, char **argv)
   // subscribe point cloud
   global_map_sub = nh.subscribe("global_map", 1, rcvGlobalPointCloudCallBack);
   odom_sub = nh.subscribe("odometry", 50, rcvOdometryCallbck);
+
+  // @author Namelessman
+  // 雷达默认朝向
+  lidarPose.orientation.x = 0;
+  lidarPose.orientation.y = M_PI;
+  lidarPose.orientation.z = 0;
+  // 雷达朝向消息订阅
+  lidarRotation_sub = nh.subscribe("lidar_orientation", 10, onLidarRotate);
 
   // publisher depth image and color image
   pub_dyncloud = nh.advertise<sensor_msgs::PointCloud2>("dyn_cloud", 10);
@@ -1972,10 +1996,10 @@ int main(int argc, char **argv)
   // myfile.open(pkg_path.c_str(), std::ios_base::out); //, std::ios_base::out
 
   // open file to record time consumuption
-  pkg_path = ros::package::getPath("local_sensing_node");  
+  pkg_path = ros::package::getPath("local_sensing_node");
   pkg_path.append("/data/" + quad_name + "_time_consumption.txt");
   std::cout << "\nFound pkg_path = " << pkg_path << std::endl;
-  myfile.open(pkg_path.c_str(), std::ios_base::out); 
+  myfile.open(pkg_path.c_str(), std::ios_base::out);
 
   // open file to record collision check time consumption
   pkg_path = ros::package::getPath("local_sensing_node");

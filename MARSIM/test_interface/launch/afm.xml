@@ -95,7 +95,7 @@
             <param name="estimation_rate" value="10.0"/>
             <param name="polar_resolution" value="0.2"/>
             <param name="yaw_fov" value="70.4"/>
-            <param name="vertical_fov" value="77.2"/>
+            <param name="vertical_fov" value="77"/>
             <param name="min_raylength" value="1.0"/>
             <param name="livox_linestep" value="1.4"/>
             <param name="curvature_limit" value="100.0"/>
@@ -217,13 +217,13 @@
                 <param name="drone_id" value="$(arg drone_id)"/>
                 <param name="quadrotor_name" value="quad_$(arg drone_id)"/>
                 <param name="uav_num" value="$(arg uav_num_)"/>
-                <param name="is_360lidar" value="1"/>
+                <param name="is_360lidar" value="0"/>
                 <param name="sensing_horizon" value="30.0"/>
                 <param name="sensing_rate" value="10.0"/>
                 <param name="estimation_rate" value="10.0"/>
                 <param name="polar_resolution" value="0.2"/>
                 <param name="yaw_fov" value="70.4"/>
-                <param name="vertical_fov" value="77.2"/>
+                <param name="vertical_fov" value="77"/>
                 <param name="min_raylength" value="1.0"/>
                 <param name="livox_linestep" value="1.4"/>
                 <param name="curvature_limit" value="100.0"/>
